@@ -1,0 +1,242 @@
+/* Base Styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    background-color: #ffffff;
+    color: #000000;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  /* Button Components */
+  .btn-primary {
+    @apply bg-black text-white px-6 py-3 rounded-lg font-medium 
+           hover:bg-gray-800 active:bg-gray-900 
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all duration-200 ease-in-out
+           focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-black border-2 border-black px-6 py-3 rounded-lg font-medium
+           hover:bg-gray-50 active:bg-gray-100
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all duration-200 ease-in-out
+           focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+  }
+  
+  .btn-outline {
+    @apply bg-transparent text-black border border-gray-300 px-4 py-2 rounded-lg font-medium
+           hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all duration-200 ease-in-out
+           focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+  }
+  
+  .btn-ghost {
+    @apply bg-transparent text-gray-600 px-4 py-2 rounded-lg font-medium
+           hover:bg-gray-100 hover:text-black active:bg-gray-200
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all duration-200 ease-in-out
+           focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+  }
+
+  /* Form Components */
+  .input-field {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg
+           focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent
+           disabled:bg-gray-50 disabled:cursor-not-allowed
+           placeholder:text-gray-400
+           transition-all duration-200 ease-in-out;
+  }
+  
+  .input-error {
+    @apply border-red-500 focus:ring-red-500;
+  }
+  
+  .label-field {
+    @apply block text-sm font-medium text-black mb-2;
+  }
+  
+  .error-text {
+    @apply text-red-600 text-sm mt-1;
+  }
+
+  /* Card Components */
+  .card {
+    @apply bg-white border border-gray-200 rounded-xl shadow-sm
+           hover:shadow-md transition-shadow duration-200;
+  }
+  
+  .card-elevated {
+    @apply bg-white border border-gray-200 rounded-xl shadow-lg
+           hover:shadow-xl transition-shadow duration-200;
+  }
+  
+  .stats-card {
+    @apply bg-white border border-gray-200 rounded-xl p-6
+           hover:shadow-md transition-all duration-200
+           cursor-default;
+  }
+
+  /* Navigation Components */
+  .nav-item {
+    @apply flex items-center px-3 py-2 rounded-lg text-gray-600
+           hover:bg-gray-100 hover:text-black
+           transition-all duration-200 ease-in-out
+           focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+  }
+  
+  .nav-item-active {
+    @apply bg-black text-white hover:bg-gray-800 hover:text-white;
+  }
+  
+  .nav-icon {
+    @apply h-5 w-5 mr-3 flex-shrink-0;
+  }
+
+  /* Layout Components */
+  .container-main {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+  
+  .page-header {
+    @apply mb-8 pb-4 border-b border-gray-200;
+  }
+  
+  .content-section {
+    @apply mb-8 space-y-6;
+  }
+
+  /* Status Components */
+  .status-delivered {
+    @apply bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium;
+  }
+  
+  .status-pending {
+    @apply bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium;
+  }
+  
+  .status-cancelled {
+    @apply bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium;
+  }
+  
+  .status-holiday {
+    @apply bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  /* Progress Components */
+  .progress-bar {
+    @apply w-full bg-gray-200 rounded-full h-2;
+  }
+  
+  .progress-fill {
+    @apply h-2 bg-black rounded-full transition-all duration-300 ease-in-out;
+  }
+}
+
+/* Custom Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Mobile Specific Styles */
+@media (max-width: 768px) {
+  .mobile-stack {
+    @apply flex-col space-y-4 space-x-0;
+  }
+  
+  .mobile-full {
+    @apply w-full;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-black text-white hover:bg-gray-800 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200 font-medium px-6 py-2.5 rounded-lg;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-black border border-gray-300 hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200 font-medium px-6 py-2.5 rounded-lg;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200 bg-white text-black placeholder-gray-500;
+  }
+  
+  .card {
+    @apply bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200;
+  }
+  
+  .card-dark {
+    @apply bg-gray-950 border border-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 text-white;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(135deg, #000000 0%, #374151 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
