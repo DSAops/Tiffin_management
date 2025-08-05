@@ -18,8 +18,6 @@ import {
   Edit
 } from 'lucide-react'
 import AddTiffinDeliveryModal from '../components/AddTiffinDeliveryModal'
-import EditTiffinDeliveryModal from '../components/EditTiffinDeliveryModal'
-import CopyTiffinDeliveryModal from '../components/CopyTiffinDeliveryModal'
 import VendorManagementModal from '../components/VendorManagementModal'
 
 function SettingsPage() {
@@ -46,10 +44,7 @@ function SettingsPage() {
   // Modal states
   const [showAddDeliveryModal, setShowAddDeliveryModal] = useState(false)
   const [showVendorModal, setShowVendorModal] = useState(false)
-  const [showEditDeliveryModal, setShowEditDeliveryModal] = useState(false)
-  const [showCopyDeliveryModal, setShowCopyDeliveryModal] = useState(false)
   const [selectedDay, setSelectedDay] = useState('')
-  const [selectedDelivery, setSelectedDelivery] = useState(null)
 
   const daysOfWeek = [
     { key: 'monday', label: 'Monday' },
@@ -63,8 +58,7 @@ function SettingsPage() {
 
   const fetchSchedule = async () => {
     try {
-      const userId = user.id || user._id
-      const response = await axios.get(`/api/tiffin/schedule/${userId}`)
+      const response = await axios.get(`/api/tiffin/schedule/${user.id}`)
       setSchedule(response.data)
     } catch (error) {
       console.error('Error fetching schedule:', error)
@@ -77,8 +71,7 @@ function SettingsPage() {
   const saveSchedule = async () => {
     try {
       setSaving(true)
-      const userId = user.id || user._id
-      await axios.put(`/api/tiffin/schedule/${userId}`, schedule)
+      await axios.put(`/api/tiffin/schedule/${user.id}`, schedule)
       toast.success('Schedule saved successfully!')
     } catch (error) {
       console.error('Error saving schedule:', error)
@@ -125,58 +118,12 @@ function SettingsPage() {
     }
 
     try {
-      const userId = user.id || user._id
-      const response = await axios.delete(`/api/tiffin/schedule/${userId}/day/${day}/delivery/${deliveryId}`)
+      const response = await axios.delete(`/api/tiffin/schedule/${user.id}/day/${day}/delivery/${deliveryId}`)
       setSchedule(response.data.schedule)
       toast.success('Delivery removed successfully!')
     } catch (error) {
       console.error('Error removing delivery:', error)
       toast.error('Failed to remove delivery')
-    }
-  }
-
-  const handleEditDelivery = (day, delivery) => {
-    setSelectedDay(day)
-    setSelectedDelivery(delivery)
-    setShowEditDeliveryModal(true)
-  }
-
-  const handleCopyDelivery = (day, delivery) => {
-    setSelectedDay(day)
-    setSelectedDelivery(delivery)
-    setShowCopyDeliveryModal(true)
-  }
-
-  const handleEditDeliverySubmit = async (updatedDelivery) => {
-    try {
-      const userId = user.id || user._id
-      const response = await axios.put(
-        `/api/tiffin/schedule/${userId}/day/${selectedDay}/delivery/${selectedDelivery._id}`,
-        updatedDelivery
-      )
-      setSchedule(response.data.schedule)
-      toast.success('Delivery updated successfully!')
-      setShowEditDeliveryModal(false)
-    } catch (error) {
-      console.error('Error updating delivery:', error)
-      toast.error('Failed to update delivery')
-    }
-  }
-
-  const handleCopyDeliverySubmit = async (targetDays) => {
-    try {
-      const userId = user.id || user._id
-      const response = await axios.post(`/api/tiffin/schedule/${userId}/copy-delivery`, {
-        sourceDay: selectedDay,
-        targetDays,
-        deliveryId: selectedDelivery._id
-      })
-      setSchedule(response.data.schedule)
-      toast.success('Delivery copied successfully!')
-      setShowCopyDeliveryModal(false)
-    } catch (error) {
-      console.error('Error copying delivery:', error)
-      toast.error('Failed to copy delivery')
     }
   }
 
@@ -364,20 +311,6 @@ function SettingsPage() {
                           <p className="text-sm text-gray-600">Total</p>
                         </div>
                         <button
-                          onClick={() => handleEditDelivery(day.key, delivery)}
-                          className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit delivery"
-                        >
-                          <Edit className="h-4 w-4 text-blue-600" />
-                        </button>
-                        <button
-                          onClick={() => handleCopyDelivery(day.key, delivery)}
-                          className="p-2 hover:bg-green-50 rounded-lg transition-colors"
-                          title="Copy to other days"
-                        >
-                          <Plus className="h-4 w-4 text-green-600" />
-                        </button>
-                        <button
                           onClick={() => handleRemoveDelivery(day.key, delivery._id)}
                           className="p-2 hover:bg-red-50 rounded-lg transition-colors"
                           title="Remove delivery"
@@ -481,28 +414,8 @@ function SettingsPage() {
         isOpen={showAddDeliveryModal}
         onClose={() => setShowAddDeliveryModal(false)}
         day={selectedDay}
-        userId={user.id || user._id}
+        userId={user.id}
         onDeliveryAdded={handleDeliveryAdded}
-      />
-
-      <EditTiffinDeliveryModal
-        isOpen={showEditDeliveryModal}
-        onClose={() => {
-          setShowEditDeliveryModal(false)
-          setSelectedDelivery(null)
-        }}
-        delivery={selectedDelivery}
-        onDeliveryUpdated={handleEditDeliverySubmit}
-      />
-      
-      <CopyTiffinDeliveryModal
-        isOpen={showCopyDeliveryModal}
-        onClose={() => {
-          setShowCopyDeliveryModal(false)
-          setSelectedDelivery(null)
-        }}
-        delivery={selectedDelivery}
-        onCopyCompleted={handleCopyDeliverySubmit}
       />
 
       <VendorManagementModal

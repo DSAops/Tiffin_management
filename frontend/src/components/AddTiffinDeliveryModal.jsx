@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import toast from 'react-hot-toast'
-import { X, Clock, Hash, Store, Plus, Check } from 'lucide-react'
+import { X, Store, Clock, Hash, Plus, Calendar, Check } from 'lucide-react'
 
-function AddTiffinModal({ isOpen, onClose, day, userId, onDeliveryAdded }) {
+function AddTiffinDeliveryModal({ isOpen, onClose, day, userId, onDeliveryAdded }) {
   const [vendors, setVendors] = useState([])
   const [selectedVendor, setSelectedVendor] = useState('')
   const [time, setTime] = useState('12:00')
@@ -15,7 +15,7 @@ function AddTiffinModal({ isOpen, onClose, day, userId, onDeliveryAdded }) {
     try {
       setVendorsLoading(true)
       const response = await axios.get('/api/vendors')
-      setVendors(response.data.data || [])
+      setVendors(response.data || [])
     } catch (error) {
       console.error('Error fetching vendors:', error)
       toast.error('Failed to load vendors')
@@ -51,6 +51,44 @@ function AddTiffinModal({ isOpen, onClose, day, userId, onDeliveryAdded }) {
     } catch (error) {
       console.error('Error adding delivery:', error)
       toast.error(error.response?.data?.error || 'Failed to add delivery')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleQuickSave = async (type) => {
+    if (!selectedVendor) {
+      toast.error('Please select a vendor')
+      return
+    }
+
+    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+    const targetDays = type === 'weekdays' ? weekdays : dayNames
+
+    try {
+      setLoading(true)
+      const promises = targetDays.map(targetDay => 
+        axios.post(`/api/tiffin/schedule/${userId}/day/${targetDay}/delivery`, {
+          vendorId: selectedVendor,
+          time,
+          quantity: parseInt(quantity)
+        })
+      )
+
+      await Promise.all(promises)
+      
+      toast.success(`Delivery added to all ${type === 'weekdays' ? 'weekdays' : 'days'}!`)
+      onDeliveryAdded()
+      onClose()
+      
+      // Reset form
+      setSelectedVendor('')
+      setTime('12:00')
+      setQuantity(1)
+    } catch (error) {
+      console.error('Error adding bulk deliveries:', error)
+      toast.error('Failed to add some deliveries')
     } finally {
       setLoading(false)
     }
@@ -214,27 +252,52 @@ function AddTiffinModal({ isOpen, onClose, day, userId, onDeliveryAdded }) {
           )}
 
           {/* Actions */}
-          <div className="flex space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn-secondary flex-1"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn-primary flex-1 flex items-center justify-center space-x-2"
-              disabled={loading || !selectedVendor || vendors.length === 0}
-            >
-              {loading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-              <span>{loading ? 'Adding...' : 'Add Delivery'}</span>
-            </button>
+          <div className="space-y-3 pt-4">
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleQuickSave('weekdays')}
+                className="btn-primary text-sm py-2 flex items-center justify-center space-x-2"
+                disabled={loading || !selectedVendor || vendors.length === 0}
+              >
+                <Calendar className="h-3 w-3" />
+                <span>Save for Weekdays</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickSave('week')}
+                className="btn-primary text-sm py-2 flex items-center justify-center space-x-2"
+                disabled={loading || !selectedVendor || vendors.length === 0}
+              >
+                <Calendar className="h-3 w-3" />
+                <span>Save for Whole Week</span>
+              </button>
+            </div>
+            
+            {/* Regular Actions */}
+            <div className="flex space-x-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-secondary flex-1"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-primary flex-1 flex items-center justify-center space-x-2"
+                disabled={loading || !selectedVendor || vendors.length === 0}
+              >
+                {loading ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                <span>{loading ? 'Adding...' : `Add to ${day}`}</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -242,4 +305,4 @@ function AddTiffinModal({ isOpen, onClose, day, userId, onDeliveryAdded }) {
   )
 }
 
-export default AddTiffinModal
+export default AddTiffinDeliveryModal

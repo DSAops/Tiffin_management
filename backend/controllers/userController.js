@@ -32,7 +32,25 @@ exports.signup = async (req, res) => {
     const hashed = await bcrypt.hash(password, 10);
     user = new User({ name, email, password: hashed });
     await user.save();
-    res.status(201).json({ message: 'Signup successful' });
+    
+    // Create token and return user info after signup
+    const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    const userObj = user.toObject();
+    delete userObj.password;
+    
+    const responseUser = {
+      id: userObj._id,
+      _id: userObj._id,
+      name: userObj.name,
+      email: userObj.email,
+      created_at: userObj.created_at
+    };
+    
+    res.status(201).json({ 
+      message: 'Signup successful', 
+      user: responseUser, 
+      token: token 
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -53,7 +71,21 @@ exports.login = async (req, res) => {
     const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
     const userObj = user.toObject();
     delete userObj.password;
-    res.status(200).json({ message: 'Logged in', user: userObj, access_token: token });
+    
+    // Ensure consistent user object structure
+    const responseUser = {
+      id: userObj._id,
+      _id: userObj._id,
+      name: userObj.name,
+      email: userObj.email,
+      created_at: userObj.created_at
+    };
+    
+    res.status(200).json({ 
+      message: 'Logged in', 
+      user: responseUser, 
+      token: token // Changed from access_token to token
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

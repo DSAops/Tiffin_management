@@ -7,6 +7,7 @@ import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import SettingsPage from './pages/SettingsPage'
+import HistoryPage from './pages/HistoryPage'
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
               <Route index element={<DashboardPage />} />
               <Route path="dashboard" element={<DashboardPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="history" element={<HistoryPage />} />
             </Route>
           </Routes>
           <Toaster 

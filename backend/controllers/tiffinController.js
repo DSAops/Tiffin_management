@@ -1,29 +1,19 @@
 const TiffinSchedule = require('../models/TiffinSchedule');
 const TiffinDelivery = require('../models/TiffinDelivery');
 const TiffinVendor = require('../models/TiffinVendor');
+const mongoose = require('mongoose');
 
 // Get user's tiffin schedule
 exports.getSchedule = async (req, res) => {
   try {
     const { user_id } = req.params;
-    let schedule = await TiffinSchedule.findOne({ user_id })
-      .populate('weekly_schedule.monday.deliveries.vendorId')
-      .populate('weekly_schedule.tuesday.deliveries.vendorId')
-      .populate('weekly_schedule.wednesday.deliveries.vendorId')
-      .populate('weekly_schedule.thursday.deliveries.vendorId')
-      .populate('weekly_schedule.friday.deliveries.vendorId')
-      .populate('weekly_schedule.saturday.deliveries.vendorId')
-      .populate('weekly_schedule.sunday.deliveries.vendorId');
+    let schedule = await TiffinSchedule.findOne({ user_id });
     
     if (!schedule) {
       // Create default schedule if doesn't exist
-      const User = require('../models/User');
-      const user = await User.findById(user_id);
-      if (!user) return res.status(404).json({ error: 'User not found' });
-      
       schedule = new TiffinSchedule({
         user_id,
-        user_name: user.name,
+        user_name: 'User', // We'll set a default name since we don't have user lookup
         weekly_schedule: {
           monday: { enabled: false, deliveries: [] },
           tuesday: { enabled: false, deliveries: [] },
@@ -36,9 +26,32 @@ exports.getSchedule = async (req, res) => {
       });
       await schedule.save();
     }
+
+    // Manually populate vendor data
+    if (schedule) {
+      const populatedSchedule = JSON.parse(JSON.stringify(schedule));
+      
+      for (const day of ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']) {
+        if (populatedSchedule.weekly_schedule[day].deliveries) {
+          for (const delivery of populatedSchedule.weekly_schedule[day].deliveries) {
+            if (delivery.vendorId) {
+              try {
+                const vendor = await TiffinVendor.findById(delivery.vendorId);
+                delivery.vendorId = vendor || { name: 'Unknown Vendor', price: 0 };
+              } catch (err) {
+                delivery.vendorId = { name: 'Unknown Vendor', price: 0 };
+              }
+            }
+          }
+        }
+      }
+      
+      return res.json(populatedSchedule);
+    }
     
     res.json(schedule);
   } catch (err) {
+    console.error('Error in getSchedule:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -49,6 +62,9 @@ exports.addDeliveryToDay = async (req, res) => {
     const { user_id, day } = req.params;
     const { vendorId, time, quantity } = req.body;
     
+    // Convert day to lowercase to match our schema
+    const dayLower = day.toLowerCase();
+    
     // Validate vendor exists
     const vendor = await TiffinVendor.findById(vendorId);
     if (!vendor) {
@@ -58,37 +74,64 @@ exports.addDeliveryToDay = async (req, res) => {
     // Get user schedule
     let schedule = await TiffinSchedule.findOne({ user_id });
     if (!schedule) {
-      const User = require('../models/User');
-      const user = await User.findById(user_id);
-      if (!user) return res.status(404).json({ error: 'User not found' });
-      
       schedule = new TiffinSchedule({
         user_id,
-        user_name: user.name
+        user_name: 'User', // Default name since we don't have user lookup
+        weekly_schedule: {
+          monday: { enabled: false, deliveries: [] },
+          tuesday: { enabled: false, deliveries: [] },
+          wednesday: { enabled: false, deliveries: [] },
+          thursday: { enabled: false, deliveries: [] },
+          friday: { enabled: false, deliveries: [] },
+          saturday: { enabled: false, deliveries: [] },
+          sunday: { enabled: true, deliveries: [] }
+        }
       });
     }
     
     // Add delivery to the specified day
-    if (!schedule.weekly_schedule[day]) {
+    if (!schedule.weekly_schedule[dayLower]) {
       return res.status(400).json({ error: 'Invalid day specified' });
     }
     
     const newDelivery = { vendorId, time, quantity: quantity || 1 };
-    schedule.weekly_schedule[day].deliveries.push(newDelivery);
-    schedule.weekly_schedule[day].enabled = true; // Enable the day when adding delivery
+    schedule.weekly_schedule[dayLower].deliveries.push(newDelivery);
+    schedule.weekly_schedule[dayLower].enabled = true; // Enable the day when adding delivery
     schedule.updated_at = new Date();
     
     await schedule.save();
     
-    // Populate the added delivery with vendor details
-    await schedule.populate(`weekly_schedule.${day}.deliveries.vendorId`);
+    // Manually populate vendor data in the response schedule
+    const responseSchedule = JSON.parse(JSON.stringify(schedule));
+    
+    for (const dayName of ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']) {
+      if (responseSchedule.weekly_schedule[dayName] && responseSchedule.weekly_schedule[dayName].deliveries) {
+        for (const delivery of responseSchedule.weekly_schedule[dayName].deliveries) {
+          if (delivery.vendorId) {
+            try {
+              const vendorInfo = await TiffinVendor.findById(delivery.vendorId);
+              console.log(`Found vendor for ${dayName}:`, vendorInfo);
+              delivery.vendorId = vendorInfo || { name: 'Unknown Vendor', price: 0 };
+            } catch (err) {
+              console.log(`Error finding vendor for ${dayName}:`, err.message);
+              delivery.vendorId = { name: 'Unknown Vendor', price: 0 };
+            }
+          }
+        }
+      }
+    }
     
     res.json({ 
       message: 'Delivery added successfully', 
-      schedule,
-      addedDelivery: schedule.weekly_schedule[day].deliveries[schedule.weekly_schedule[day].deliveries.length - 1]
+      schedule: responseSchedule,
+      addedDelivery: {
+        vendorId: vendor,
+        time: time,
+        quantity: quantity || 1
+      }
     });
   } catch (err) {
+    console.error('Error in addDeliveryToDay:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -98,23 +141,26 @@ exports.removeDeliveryFromDay = async (req, res) => {
   try {
     const { user_id, day, delivery_id } = req.params;
     
+    // Convert day to lowercase to match our schema
+    const dayLower = day.toLowerCase();
+    
     const schedule = await TiffinSchedule.findOne({ user_id });
     if (!schedule) {
       return res.status(404).json({ error: 'Schedule not found' });
     }
     
-    if (!schedule.weekly_schedule[day]) {
+    if (!schedule.weekly_schedule[dayLower]) {
       return res.status(400).json({ error: 'Invalid day specified' });
     }
     
     // Remove the delivery
-    schedule.weekly_schedule[day].deliveries = schedule.weekly_schedule[day].deliveries.filter(
+    schedule.weekly_schedule[dayLower].deliveries = schedule.weekly_schedule[dayLower].deliveries.filter(
       delivery => delivery._id.toString() !== delivery_id
     );
     
     // If no deliveries left, disable the day
-    if (schedule.weekly_schedule[day].deliveries.length === 0) {
-      schedule.weekly_schedule[day].enabled = false;
+    if (schedule.weekly_schedule[dayLower].deliveries.length === 0) {
+      schedule.weekly_schedule[dayLower].enabled = false;
     }
     
     schedule.updated_at = new Date();
@@ -122,6 +168,137 @@ exports.removeDeliveryFromDay = async (req, res) => {
     
     res.json({ message: 'Delivery removed successfully', schedule });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Edit delivery in a specific day
+exports.editDeliveryInDay = async (req, res) => {
+  try {
+    const { user_id, day, delivery_id } = req.params;
+    const { vendorId, time, quantity } = req.body;
+    
+    // Convert day to lowercase to match our schema
+    const dayLower = day.toLowerCase();
+    
+    // Validate vendor exists if vendorId is provided
+    if (vendorId) {
+      const vendor = await TiffinVendor.findById(vendorId);
+      if (!vendor) {
+        return res.status(400).json({ error: 'Vendor not found' });
+      }
+    }
+    
+    const schedule = await TiffinSchedule.findOne({ user_id });
+    if (!schedule) {
+      return res.status(404).json({ error: 'Schedule not found' });
+    }
+    
+    if (!schedule.weekly_schedule[dayLower]) {
+      return res.status(400).json({ error: 'Invalid day specified' });
+    }
+    
+    // Find and update the delivery
+    const delivery = schedule.weekly_schedule[dayLower].deliveries.id(delivery_id);
+    if (!delivery) {
+      return res.status(404).json({ error: 'Delivery not found' });
+    }
+    
+    // Update delivery fields
+    if (vendorId) delivery.vendorId = vendorId;
+    if (time) delivery.time = time;
+    if (quantity !== undefined) delivery.quantity = quantity;
+    
+    schedule.updated_at = new Date();
+    await schedule.save();
+    
+    // Manually populate vendor data in the response
+    const responseSchedule = JSON.parse(JSON.stringify(schedule));
+    for (const dayName of ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']) {
+      if (responseSchedule.weekly_schedule[dayName] && responseSchedule.weekly_schedule[dayName].deliveries) {
+        for (const deliveryItem of responseSchedule.weekly_schedule[dayName].deliveries) {
+          if (deliveryItem.vendorId) {
+            try {
+              const vendorInfo = await TiffinVendor.findById(deliveryItem.vendorId);
+              deliveryItem.vendorId = vendorInfo || { name: 'Unknown Vendor', price: 0 };
+            } catch (err) {
+              deliveryItem.vendorId = { name: 'Unknown Vendor', price: 0 };
+            }
+          }
+        }
+      }
+    }
+    
+    res.json({ message: 'Delivery updated successfully', schedule: responseSchedule });
+  } catch (err) {
+    console.error('Error in editDeliveryInDay:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Copy delivery to multiple days
+exports.copyDeliveryToMultipleDays = async (req, res) => {
+  try {
+    const { user_id } = req.params;
+    const { sourceDay, targetDays, deliveryId } = req.body;
+    
+    // Convert days to lowercase to match our schema
+    const sourceDayLower = sourceDay.toLowerCase();
+    const targetDaysLower = targetDays.map(day => day.toLowerCase());
+    
+    const schedule = await TiffinSchedule.findOne({ user_id });
+    if (!schedule) {
+      return res.status(404).json({ error: 'Schedule not found' });
+    }
+    
+    // Find the source delivery
+    const sourceDelivery = schedule.weekly_schedule[sourceDayLower]?.deliveries.id(deliveryId);
+    if (!sourceDelivery) {
+      return res.status(404).json({ error: 'Source delivery not found' });
+    }
+    
+    // Copy to target days
+    for (const day of targetDaysLower) {
+      if (schedule.weekly_schedule[day]) {
+        // Check if delivery with same vendor already exists
+        const existingDelivery = schedule.weekly_schedule[day].deliveries.find(
+          d => d.vendorId.toString() === sourceDelivery.vendorId.toString()
+        );
+        
+        if (!existingDelivery) {
+          schedule.weekly_schedule[day].deliveries.push({
+            vendorId: sourceDelivery.vendorId,
+            time: sourceDelivery.time,
+            quantity: sourceDelivery.quantity
+          });
+          schedule.weekly_schedule[day].enabled = true;
+        }
+      }
+    }
+    
+    schedule.updated_at = new Date();
+    await schedule.save();
+    
+    // Populate vendor data
+    const responseSchedule = JSON.parse(JSON.stringify(schedule));
+    for (const dayName of ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']) {
+      if (responseSchedule.weekly_schedule[dayName] && responseSchedule.weekly_schedule[dayName].deliveries) {
+        for (const deliveryItem of responseSchedule.weekly_schedule[dayName].deliveries) {
+          if (deliveryItem.vendorId) {
+            try {
+              const vendorInfo = await TiffinVendor.findById(deliveryItem.vendorId);
+              deliveryItem.vendorId = vendorInfo || { name: 'Unknown Vendor', price: 0 };
+            } catch (err) {
+              deliveryItem.vendorId = { name: 'Unknown Vendor', price: 0 };
+            }
+          }
+        }
+      }
+    }
+    
+    res.json({ message: 'Delivery copied successfully', schedule: responseSchedule });
+  } catch (err) {
+    console.error('Error in copyDeliveryToMultipleDays:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -181,9 +358,318 @@ exports.getDeliveries = async (req, res) => {
     const deliveries = await TiffinDelivery.find({
       user_id,
       delivery_date: { $gte: fromDateStr }
-    }).sort({ delivery_date: -1 });
+    })
+    .populate('vendor_id', 'name price description')
+    .sort({ delivery_date: -1 });
     
     res.json(deliveries);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Get all deliveries for system overview
+exports.getAllDeliveries = async (req, res) => {
+  try {
+    const { days = 30, status, user_id } = req.query;
+    
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - parseInt(days));
+    const fromDateStr = fromDate.toISOString().split('T')[0];
+    
+    // Build query
+    let query = { delivery_date: { $gte: fromDateStr } };
+    
+    if (status && status !== 'all') {
+      if (status === 'delivered') {
+        query.delivered = true;
+      } else if (status === 'pending') {
+        query.delivered = false;
+        query.status = { $ne: 'cancelled' };
+      } else if (status === 'cancelled') {
+        query.status = 'cancelled';
+      }
+    }
+    
+    if (user_id && user_id !== 'all') {
+      query.user_id = user_id;
+    }
+    
+    const deliveries = await TiffinDelivery.find(query)
+      .populate('vendor_id', 'name price description')
+      .sort({ delivery_date: -1, scheduled_time: 1 });
+    
+    res.json({
+      deliveries,
+      total: deliveries.length,
+      filters: { days, status: status || 'all', user_id: user_id || 'all' }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Get detailed history for a specific user
+exports.getUserHistory = async (req, res) => {
+  try {
+    const { user_id } = req.params;
+    const { days = 90, page = 1, limit = 50 } = req.query;
+    
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - parseInt(days));
+    const fromDateStr = fromDate.toISOString().split('T')[0];
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Get user info
+    const User = require('../models/User');
+    const user = await User.findById(user_id).select('name email');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Get deliveries with pagination
+    const deliveries = await TiffinDelivery.find({
+      user_id,
+      delivery_date: { $gte: fromDateStr }
+    })
+    .populate('vendor_id', 'name price description')
+    .sort({ delivery_date: -1, scheduled_time: 1 })
+    .skip(skip)
+    .limit(parseInt(limit));
+    
+    // Get total count
+    const totalCount = await TiffinDelivery.countDocuments({
+      user_id,
+      delivery_date: { $gte: fromDateStr }
+    });
+    
+    // Calculate statistics
+    const stats = await TiffinDelivery.aggregate([
+      {
+        $match: {
+          user_id: new mongoose.Types.ObjectId(user_id),
+          delivery_date: { $gte: fromDateStr }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalDeliveries: { $sum: 1 },
+          deliveredCount: {
+            $sum: { $cond: [{ $eq: ['$delivered', true] }, 1, 0] }
+          },
+          cancelledCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] }
+          },
+          totalQuantity: { $sum: '$quantity' },
+          totalSpent: {
+            $sum: {
+              $multiply: ['$quantity', { $ifNull: ['$vendor_id.price', 0] }]
+            }
+          }
+        }
+      }
+    ]);
+    
+    const userStats = stats[0] || {
+      totalDeliveries: 0,
+      deliveredCount: 0,
+      cancelledCount: 0,
+      totalQuantity: 0,
+      totalSpent: 0
+    };
+    
+    res.json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email
+      },
+      deliveries,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalCount,
+        totalPages: Math.ceil(totalCount / parseInt(limit)),
+        hasNextPage: skip + deliveries.length < totalCount,
+        hasPrevPage: parseInt(page) > 1
+      },
+      statistics: {
+        ...userStats,
+        deliveryRate: userStats.totalDeliveries > 0 
+          ? ((userStats.deliveredCount / userStats.totalDeliveries) * 100).toFixed(1)
+          : 0,
+        avgQuantityPerDelivery: userStats.totalDeliveries > 0
+          ? (userStats.totalQuantity / userStats.totalDeliveries).toFixed(1)
+          : 0
+      },
+      period: `${days} days`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Get history for all users
+exports.getAllUsersHistory = async (req, res) => {
+  try {
+    const { days = 30, page = 1, limit = 100 } = req.query;
+    
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - parseInt(days));
+    const fromDateStr = fromDate.toISOString().split('T')[0];
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Get all deliveries with user and vendor info
+    const deliveries = await TiffinDelivery.find({
+      delivery_date: { $gte: fromDateStr }
+    })
+    .populate('vendor_id', 'name price description')
+    .sort({ delivery_date: -1, scheduled_time: 1 })
+    .skip(skip)
+    .limit(parseInt(limit));
+    
+    // Get total count
+    const totalCount = await TiffinDelivery.countDocuments({
+      delivery_date: { $gte: fromDateStr }
+    });
+    
+    // Get user statistics
+    const userStats = await TiffinDelivery.aggregate([
+      {
+        $match: {
+          delivery_date: { $gte: fromDateStr }
+        }
+      },
+      {
+        $group: {
+          _id: '$user_id',
+          userName: { $first: '$user_name' },
+          totalDeliveries: { $sum: 1 },
+          deliveredCount: {
+            $sum: { $cond: [{ $eq: ['$delivered', true] }, 1, 0] }
+          },
+          totalQuantity: { $sum: '$quantity' },
+          lastDelivery: { $max: '$delivery_date' }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          userName: 1,
+          totalDeliveries: 1,
+          deliveredCount: 1,
+          totalQuantity: 1,
+          lastDelivery: 1,
+          deliveryRate: {
+            $cond: [
+              { $gt: ['$totalDeliveries', 0] },
+              { $multiply: [{ $divide: ['$deliveredCount', '$totalDeliveries'] }, 100] },
+              0
+            ]
+          }
+        }
+      },
+      { $sort: { totalDeliveries: -1 } }
+    ]);
+    
+    // Get vendor statistics
+    const vendorStats = await TiffinDelivery.aggregate([
+      {
+        $match: {
+          delivery_date: { $gte: fromDateStr },
+          vendor_id: { $exists: true }
+        }
+      },
+      {
+        $lookup: {
+          from: 'tiffinvendors',
+          localField: 'vendor_id',
+          foreignField: '_id',
+          as: 'vendor'
+        }
+      },
+      { $unwind: '$vendor' },
+      {
+        $group: {
+          _id: '$vendor_id',
+          vendorName: { $first: '$vendor.name' },
+          totalOrders: { $sum: 1 },
+          totalQuantity: { $sum: '$quantity' },
+          deliveredOrders: {
+            $sum: { $cond: [{ $eq: ['$delivered', true] }, 1, 0] }
+          }
+        }
+      },
+      { $sort: { totalOrders: -1 } }
+    ]);
+    
+    // System-wide statistics
+    const systemStats = await TiffinDelivery.aggregate([
+      {
+        $match: {
+          delivery_date: { $gte: fromDateStr }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalDeliveries: { $sum: 1 },
+          deliveredCount: {
+            $sum: { $cond: [{ $eq: ['$delivered', true] }, 1, 0] }
+          },
+          cancelledCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] }
+          },
+          totalQuantity: { $sum: '$quantity' },
+          uniqueUsers: { $addToSet: '$user_id' },
+          uniqueVendors: { $addToSet: '$vendor_id' }
+        }
+      },
+      {
+        $project: {
+          totalDeliveries: 1,
+          deliveredCount: 1,
+          cancelledCount: 1,
+          totalQuantity: 1,
+          uniqueUsersCount: { $size: '$uniqueUsers' },
+          uniqueVendorsCount: { $size: '$uniqueVendors' },
+          deliveryRate: {
+            $cond: [
+              { $gt: ['$totalDeliveries', 0] },
+              { $multiply: [{ $divide: ['$deliveredCount', '$totalDeliveries'] }, 100] },
+              0
+            ]
+          }
+        }
+      }
+    ]);
+    
+    res.json({
+      deliveries,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalCount,
+        totalPages: Math.ceil(totalCount / parseInt(limit)),
+        hasNextPage: skip + deliveries.length < totalCount,
+        hasPrevPage: parseInt(page) > 1
+      },
+      systemStatistics: systemStats[0] || {
+        totalDeliveries: 0,
+        deliveredCount: 0,
+        cancelledCount: 0,
+        totalQuantity: 0,
+        uniqueUsersCount: 0,
+        uniqueVendorsCount: 0,
+        deliveryRate: 0
+      },
+      userStatistics: userStats,
+      vendorStatistics: vendorStats,
+      period: `${days} days`
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

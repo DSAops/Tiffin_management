@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth');
 const {
   getUserTiffinOrders,
   createTiffinOrder,
@@ -10,18 +9,18 @@ const {
 } = require('../controllers/tiffinOrderController');
 
 // Get all tiffin orders for user (optionally filter by day)
-router.get('/', auth, getUserTiffinOrders);
+router.get('/', getUserTiffinOrders);
 
 // Get orders by specific day
-router.get('/day/:dayOfWeek', auth, getOrdersByDay);
+router.get('/day/:dayOfWeek', getOrdersByDay);
 
 // Create new tiffin order
-router.post('/', auth, createTiffinOrder);
+router.post('/', createTiffinOrder);
 
 // Update tiffin order
-router.put('/:id', auth, updateTiffinOrder);
+router.put('/:id', updateTiffinOrder);
 
 // Delete tiffin order
-router.delete('/:id', auth, deleteTiffinOrder);
+router.delete('/:id', deleteTiffinOrder);
 
 module.exports = router;

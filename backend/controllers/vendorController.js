@@ -4,7 +4,6 @@ const TiffinVendor = require('../models/TiffinVendor');
 const getAllVendors = async (req, res) => {
   try {
     const vendors = await TiffinVendor.find({ isActive: true })
-      .populate('createdBy', 'name email')
       .sort({ name: 1 });
     
     res.json(vendors);
@@ -17,7 +16,7 @@ const getAllVendors = async (req, res) => {
 // Create new vendor
 const createVendor = async (req, res) => {
   try {
-    const { name, price, description } = req.body;
+    const { name, price, description, createdBy } = req.body;
     
     if (!name || !price) {
       return res.status(400).json({ error: 'Name and price are required' });
@@ -36,11 +35,10 @@ const createVendor = async (req, res) => {
       name: name.trim(),
       price: parseFloat(price),
       description: description || '',
-      createdBy: req.user.id
+      createdBy: createdBy || 'System'
     });
 
     await vendor.save();
-    await vendor.populate('createdBy', 'name email');
     
     res.status(201).json(vendor);
   } catch (error) {
@@ -64,18 +62,12 @@ const updateVendor = async (req, res) => {
       return res.status(404).json({ error: 'Vendor not found' });
     }
 
-    // Only allow creator or admin to update
-    if (vendor.createdBy.toString() !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Not authorized to update this vendor' });
-    }
-
     if (name) vendor.name = name.trim();
     if (price !== undefined) vendor.price = parseFloat(price);
     if (description !== undefined) vendor.description = description;
     if (isActive !== undefined) vendor.isActive = isActive;
 
     await vendor.save();
-    await vendor.populate('createdBy', 'name email');
     
     res.json(vendor);
   } catch (error) {
@@ -98,11 +90,6 @@ const deleteVendor = async (req, res) => {
       return res.status(404).json({ error: 'Vendor not found' });
     }
 
-    // Only allow creator or admin to delete
-    if (vendor.createdBy.toString() !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Not authorized to delete this vendor' });
-    }
-
     vendor.isActive = false;
     await vendor.save();
     
@@ -116,8 +103,7 @@ const deleteVendor = async (req, res) => {
 // Get vendor by ID
 const getVendorById = async (req, res) => {
   try {
-    const vendor = await TiffinVendor.findById(req.params.id)
-      .populate('createdBy', 'name email');
+    const vendor = await TiffinVendor.findById(req.params.id);
     
     if (!vendor) {
       return res.status(404).json({ error: 'Vendor not found' });

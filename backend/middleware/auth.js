@@ -14,7 +14,14 @@ const auth = (req, res, next) => {
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    
+    // Ensure consistent user object structure in req.user
+    req.user = {
+      id: decoded.userId,
+      userId: decoded.userId,
+      email: decoded.email
+    };
+    
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);

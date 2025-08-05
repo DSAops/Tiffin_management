@@ -4,7 +4,15 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+
+// CORS configuration
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 const PORT = process.env.PORT || 8000;
@@ -26,11 +34,16 @@ app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'Tiffin Manager API' });
 });
 
+// Test route without auth
+app.get('/api/test', (req, res) => {
+  res.json({ status: 'ok', message: 'No auth required' });
+});
+
 // Import and use routers
-app.use('/users', require('./routes/users'));
-app.use('/tiffin', require('./routes/tiffin'));
-app.use('/vendors', require('./routes/tiffinVendors'));
-app.use('/tiffin-orders', require('./routes/tiffinOrders'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/tiffin', require('./routes/tiffin'));
+app.use('/api/vendors', require('./routes/vendors'));
+app.use('/api/tiffin-orders', require('./routes/tiffinOrders'));
 
 // Start server
 app.listen(PORT, () => {

@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const { body } = require('express-validator');
-const auth = require('../middleware/auth');
 const vendorController = require('../controllers/tiffinVendorController');
 
 // Validation middleware
@@ -41,12 +40,12 @@ const vendorUpdateValidation = [
     .withMessage('isActive must be a boolean value')
 ];
 
-// Routes
-router.get('/', auth, vendorController.getAllVendors);
-router.get('/stats', auth, vendorController.getVendorStats);
-router.get('/:id', auth, vendorController.getVendorById);
-router.post('/', auth, vendorValidation, vendorController.createVendor);
-router.put('/:id', auth, vendorUpdateValidation, vendorController.updateVendor);
-router.delete('/:id', auth, vendorController.deleteVendor);
+// Routes - no auth needed for local app
+router.get('/', vendorController.getAllVendors);
+router.get('/stats', vendorController.getVendorStats);
+router.get('/:id', vendorController.getVendorById);
+router.post('/', vendorValidation, vendorController.createVendor);
+router.put('/:id', vendorUpdateValidation, vendorController.updateVendor);
+router.delete('/:id', vendorController.deleteVendor);
 
 module.exports = router;

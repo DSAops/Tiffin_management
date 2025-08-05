@@ -7,7 +7,8 @@ import {
   LogOut, 
   Menu,
   X,
-  ChefHat
+  ChefHat,
+  History
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -19,6 +20,7 @@ function Layout() {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Settings', href: '/settings', icon: Settings },
+    { name: 'History', href: '/history', icon: History },
   ]
 
   const isActive = (href) => location.pathname === href

@@ -5,8 +5,7 @@ const { validationResult } = require('express-validator');
 exports.getAllVendors = async (req, res) => {
   try {
     const vendors = await TiffinVendor.find({ isActive: true })
-      .sort({ name: 1 })
-      .populate('createdBy', 'name email');
+      .sort({ name: 1 });
     
     res.status(200).json({
       success: true,
@@ -24,8 +23,7 @@ exports.getAllVendors = async (req, res) => {
 // Get vendor by ID
 exports.getVendorById = async (req, res) => {
   try {
-    const vendor = await TiffinVendor.findById(req.params.id)
-      .populate('createdBy', 'name email');
+    const vendor = await TiffinVendor.findById(req.params.id);
     
     if (!vendor) {
       return res.status(404).json({
@@ -59,7 +57,7 @@ exports.createVendor = async (req, res) => {
       });
     }
 
-    const { name, price, description } = req.body;
+    const { name, price, description, createdBy } = req.body;
 
     // Check if vendor with same name already exists
     const existingVendor = await TiffinVendor.findOne({ 
@@ -77,17 +75,14 @@ exports.createVendor = async (req, res) => {
       name,
       price,
       description,
-      createdBy: req.user.id
+      createdBy: createdBy || 'System' // Default to 'System' if no user specified
     });
 
     await vendor.save();
 
-    const populatedVendor = await TiffinVendor.findById(vendor._id)
-      .populate('createdBy', 'name email');
-
     res.status(201).json({
       success: true,
-      data: populatedVendor,
+      data: vendor,
       message: 'Vendor created successfully'
     });
   } catch (error) {

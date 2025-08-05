@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { Link } from 'react-router-dom'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import { 
@@ -9,7 +10,9 @@ import {
   Clock,
   TrendingUp,
   RefreshCw,
-  Package
+  Package,
+  History,
+  ArrowRight
 } from 'lucide-react'
 
 function DashboardPage() {
@@ -31,9 +34,12 @@ function DashboardPage() {
     try {
       if (showToast) setRefreshing(true)
       
+      const userId = user.id || user._id
+      console.log('Fetching dashboard data for user:', userId)
+      
       const [statsResponse, deliveriesResponse] = await Promise.all([
         axios.get('/api/tiffin/dashboard/stats'),
-        axios.get(`/api/tiffin/deliveries/${user.id}?days=7`)
+        axios.get(`/api/tiffin/deliveries/${userId}?days=7`)
       ])
 
       setStats(statsResponse.data)
@@ -168,19 +174,32 @@ function DashboardPage() {
                         {new Date(delivery.delivery_date).toLocaleDateString()}
                       </p>
                       <p className="text-sm text-gray-600">
-                        {delivery.delivered ? 'Delivered' : 'Pending'}
+                        {delivery.vendor_id?.name || 'Unknown Vendor'} • Qty: {delivery.quantity}
                       </p>
                     </div>
                   </div>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    delivery.delivered 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {delivery.status || (delivery.delivered ? 'Completed' : 'Scheduled')}
-                  </span>
+                  <div className="text-right">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      delivery.delivered 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {delivery.status || (delivery.delivered ? 'Completed' : 'Scheduled')}
+                    </span>
+                    <p className="text-sm text-gray-600 mt-1">
+                      ₹{((delivery.vendor_id?.price || 0) * delivery.quantity).toFixed(2)}
+                    </p>
+                  </div>
                 </div>
               ))}
+              <Link
+                to="/history"
+                className="flex items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-black hover:bg-gray-50 transition-colors group"
+              >
+                <History className="h-4 w-4 text-gray-400 group-hover:text-black mr-2" />
+                <span className="text-gray-600 group-hover:text-black">View Full History</span>
+                <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-black ml-2" />
+              </Link>
             </div>
           ) : (
             <div className="text-center py-8">

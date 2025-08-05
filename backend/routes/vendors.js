@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth');
 const {
   getAllVendors,
   createVendor,
@@ -10,18 +9,18 @@ const {
 } = require('../controllers/vendorController');
 
 // Get all vendors
-router.get('/', auth, getAllVendors);
+router.get('/', getAllVendors);
 
 // Get vendor by ID
-router.get('/:id', auth, getVendorById);
+router.get('/:id', getVendorById);
 
 // Create new vendor
-router.post('/', auth, createVendor);
+router.post('/', createVendor);
 
 // Update vendor
-router.put('/:id', auth, updateVendor);
+router.put('/:id', updateVendor);
 
 // Delete vendor (soft delete)
-router.delete('/:id', auth, deleteVendor);
+router.delete('/:id', deleteVendor);
 
 module.exports = router;

@@ -4,8 +4,13 @@ const TiffinVendor = require('../models/TiffinVendor');
 // Get all tiffin orders for a user
 const getUserTiffinOrders = async (req, res) => {
   try {
-    const { dayOfWeek } = req.query;
-    const filter = { userId: req.user.id, isActive: true };
+    const { dayOfWeek, userId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+    
+    const filter = { userId: userId, isActive: true };
     
     if (dayOfWeek) {
       filter.dayOfWeek = dayOfWeek.toLowerCase();
@@ -25,11 +30,11 @@ const getUserTiffinOrders = async (req, res) => {
 // Create new tiffin order
 const createTiffinOrder = async (req, res) => {
   try {
-    const { vendorId, dayOfWeek, deliveryTime, quantity, notes } = req.body;
+    const { vendorId, dayOfWeek, deliveryTime, quantity, notes, userId } = req.body;
     
-    if (!vendorId || !dayOfWeek || !deliveryTime || !quantity) {
+    if (!vendorId || !dayOfWeek || !deliveryTime || !quantity || !userId) {
       return res.status(400).json({ 
-        error: 'Vendor, day of week, delivery time, and quantity are required' 
+        error: 'Vendor, day of week, delivery time, quantity, and user ID are required' 
       });
     }
 
@@ -52,7 +57,7 @@ const createTiffinOrder = async (req, res) => {
     }
 
     const order = new TiffinOrder({
-      userId: req.user.id,
+      userId: userId,
       vendorId,
       dayOfWeek: dayOfWeek.toLowerCase(),
       deliveryTime,
@@ -80,9 +85,13 @@ const createTiffinOrder = async (req, res) => {
 const updateTiffinOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const { vendorId, deliveryTime, quantity, notes, isActive } = req.body;
+    const { vendorId, deliveryTime, quantity, notes, isActive, userId } = req.body;
 
-    const order = await TiffinOrder.findOne({ _id: id, userId: req.user.id });
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    const order = await TiffinOrder.findOne({ _id: id, userId: userId });
     if (!order) {
       return res.status(404).json({ error: 'Tiffin order not found' });
     }
@@ -127,8 +136,13 @@ const updateTiffinOrder = async (req, res) => {
 const deleteTiffinOrder = async (req, res) => {
   try {
     const { id } = req.params;
+    const { userId } = req.body;
 
-    const order = await TiffinOrder.findOneAndDelete({ _id: id, userId: req.user.id });
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    const order = await TiffinOrder.findOneAndDelete({ _id: id, userId: userId });
     if (!order) {
       return res.status(404).json({ error: 'Tiffin order not found' });
     }
@@ -144,6 +158,11 @@ const deleteTiffinOrder = async (req, res) => {
 const getOrdersByDay = async (req, res) => {
   try {
     const { dayOfWeek } = req.params;
+    const { userId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
     
     const validDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
     if (!validDays.includes(dayOfWeek.toLowerCase())) {
@@ -151,7 +170,7 @@ const getOrdersByDay = async (req, res) => {
     }
 
     const orders = await TiffinOrder.find({ 
-      userId: req.user.id, 
+      userId: userId, 
       dayOfWeek: dayOfWeek.toLowerCase(),
       isActive: true 
     })

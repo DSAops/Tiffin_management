@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import { X, Store, Plus, Edit2, Trash2, DollarSign } from 'lucide-react'
 
 function VendorManagementModal({ isOpen, onClose, onVendorAdded }) {
+  const { user } = useAuth()
   const [vendors, setVendors] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -20,7 +22,7 @@ function VendorManagementModal({ isOpen, onClose, onVendorAdded }) {
     try {
       setLoading(true)
       const response = await axios.get('/api/vendors')
-      setVendors(response.data.data || [])
+      setVendors(response.data)
     } catch (error) {
       console.error('Error fetching vendors:', error)
       toast.error('Failed to load vendors')
@@ -46,7 +48,11 @@ function VendorManagementModal({ isOpen, onClose, onVendorAdded }) {
         toast.success('Vendor updated successfully!')
       } else {
         // Create new vendor
-        await axios.post('/api/vendors', formData)
+        const vendorData = {
+          ...formData,
+          createdBy: user?.name || 'Anonymous'
+        }
+        await axios.post('/api/vendors', vendorData)
         toast.success('Vendor added successfully!')
       }
       
@@ -242,7 +248,7 @@ function VendorManagementModal({ isOpen, onClose, onVendorAdded }) {
                           <p className="text-sm text-gray-600 mt-1">{vendor.description}</p>
                         )}
                         <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
-                          <span>Added by {vendor.createdBy?.name || 'Unknown'}</span>
+                          <span>Added by {vendor.createdBy || 'Unknown'}</span>
                           <span>•</span>
                           <span>{new Date(vendor.createdAt).toLocaleDateString()}</span>
                         </div>

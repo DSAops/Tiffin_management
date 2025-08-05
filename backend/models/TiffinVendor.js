@@ -21,9 +21,8 @@ const tiffinVendorSchema = new mongoose.Schema({
     default: true
   },
   createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    type: String, // Changed from ObjectId to String for simplicity
+    default: 'System'
   },
   createdAt: {
     type: Date,

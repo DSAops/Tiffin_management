@@ -13,8 +13,10 @@ class TiffinScheduler {
     this.isRunning = true;
     console.log('🍱 Tiffin Scheduler started');
     
-    // Run immediately
-    this.processSchedules();
+    // Run after a short delay to ensure DB is ready
+    setTimeout(() => {
+      this.processSchedules();
+    }, 5000); // Wait 5 seconds
     
     // Run every hour
     this.interval = setInterval(() => {
@@ -42,57 +44,99 @@ class TiffinScheduler {
       const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
       const dayOfWeek = this.getDayOfWeek(today);
       
-      // Get all active schedules with vendor information
-      const schedules = await TiffinSchedule.find({}).populate('weekly_schedule.monday.deliveries.vendorId weekly_schedule.tuesday.deliveries.vendorId weekly_schedule.wednesday.deliveries.vendorId weekly_schedule.thursday.deliveries.vendorId weekly_schedule.friday.deliveries.vendorId weekly_schedule.saturday.deliveries.vendorId weekly_schedule.sunday.deliveries.vendorId');
+      // Get all schedules without complex populate to avoid errors
+      const schedules = await TiffinSchedule.find({});
       
       let processedCount = 0;
       let createdCount = 0;
       
       for (const schedule of schedules) {
         try {
+          // Validate schedule structure
+          if (!schedule.weekly_schedule) {
+            console.log(`⚠️ Skipping ${schedule.user_name} - No weekly_schedule found`);
+            continue;
+          }
+          
           // Check if user is in holiday mode
           if (this.isInHolidayMode(schedule, todayStr)) {
             console.log(`⏸️ Skipping ${schedule.user_name} - Holiday mode active`);
             continue;
           }
           
-          // Check if today is enabled for this user
-          const daySchedule = schedule.weekly_schedule[dayOfWeek];
-          if (!daySchedule || !daySchedule.enabled || !daySchedule.deliveries || daySchedule.deliveries.length === 0) {
+          // Get today's schedule with robust validation
+          let daySchedule;
+          try {
+            daySchedule = schedule.weekly_schedule[dayOfWeek];
+          } catch (err) {
+            console.log(`⚠️ Error accessing ${dayOfWeek} schedule for ${schedule.user_name}:`, err.message);
             continue;
+          }
+          
+          // Handle all possible invalid states
+          if (!daySchedule) {
+            console.log(`⚠️ No ${dayOfWeek} schedule for ${schedule.user_name}`);
+            continue;
+          }
+          
+          if (typeof daySchedule !== 'object') {
+            console.log(`⚠️ Invalid ${dayOfWeek} schedule type for ${schedule.user_name}: ${typeof daySchedule}`);
+            continue;
+          }
+          
+          if (!daySchedule.enabled) {
+            continue; // Day not enabled
+          }
+          
+          if (!Array.isArray(daySchedule.deliveries)) {
+            console.log(`⚠️ Invalid deliveries array for ${schedule.user_name} on ${dayOfWeek}`);
+            continue;
+          }
+          
+          if (daySchedule.deliveries.length === 0) {
+            continue; // No deliveries scheduled
           }
           
           // Process each delivery for this day
           for (const deliveryConfig of daySchedule.deliveries) {
-            // Check if delivery already exists for today with this vendor
-            const existingDelivery = await TiffinDelivery.findOne({
-              user_id: schedule.user_id,
-              delivery_date: todayStr,
-              vendor_id: deliveryConfig.vendorId
-            });
-            
-            if (existingDelivery) {
-              continue; // Already scheduled
+            try {
+              if (!deliveryConfig || !deliveryConfig.vendorId) {
+                continue; // Skip if no vendor
+              }
+              
+              // Check if delivery already exists for today with this vendor
+              const existingDelivery = await TiffinDelivery.findOne({
+                user_id: schedule.user_id,
+                delivery_date: todayStr,
+                vendor_id: deliveryConfig.vendorId
+              });
+              
+              if (existingDelivery) {
+                continue; // Already scheduled
+              }
+              
+              // Create new delivery
+              const delivery = new TiffinDelivery({
+                user_id: schedule.user_id,
+                user_name: schedule.user_name || 'Unknown User',
+                delivery_date: todayStr,
+                scheduled_time: deliveryConfig.time || "12:00",
+                quantity: deliveryConfig.quantity || 1,
+                vendor_id: deliveryConfig.vendorId,
+                delivered: false
+              });
+              
+              await delivery.save();
+              createdCount++;
+              console.log(`✅ Scheduled tiffin for ${schedule.user_name} from vendor ${deliveryConfig.vendorId} at ${deliveryConfig.time}`);
+              
+            } catch (deliveryErr) {
+              console.error(`❌ Error creating delivery for ${schedule.user_name}:`, deliveryErr.message);
             }
-            
-            // Create new delivery
-            const delivery = new TiffinDelivery({
-              user_id: schedule.user_id,
-              user_name: schedule.user_name,
-              delivery_date: todayStr,
-              scheduled_time: deliveryConfig.time || "12:00",
-              quantity: deliveryConfig.quantity || 1,
-              vendor_id: deliveryConfig.vendorId,
-              delivered: false
-            });
-            
-            await delivery.save();
-            createdCount++;
-            console.log(`✅ Scheduled tiffin for ${schedule.user_name} from vendor ${deliveryConfig.vendorId} at ${deliveryConfig.time}`);
           }
           
-        } catch (err) {
-          console.error(`❌ Error processing schedule for ${schedule.user_name}:`, err.message);
+        } catch (scheduleErr) {
+          console.error(`❌ Error processing schedule for ${schedule.user_name || 'Unknown'}:`, scheduleErr.message);
         }
         
         processedCount++;
@@ -102,6 +146,7 @@ class TiffinScheduler {
       
     } catch (err) {
       console.error('❌ Error in processSchedules:', err.message);
+      console.error('Stack trace:', err.stack);
     }
   }
 

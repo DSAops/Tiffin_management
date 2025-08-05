@@ -6,6 +6,7 @@ const AuthContext = createContext()
 
 const initialState = {
   user: null,
+  token: null,
   isLoading: true,
   isAuthenticated: false
 }
@@ -19,20 +20,23 @@ function authReducer(state, action) {
         ...state,
         isLoading: false,
         isAuthenticated: true,
-        user: action.payload.user
+        user: action.payload.user,
+        token: action.payload.token
       }
     case 'AUTH_ERROR':
       return {
         ...state,
         isLoading: false,
         isAuthenticated: false,
-        user: null
+        user: null,
+        token: null
       }
     case 'LOGOUT':
       return {
         ...state,
         isAuthenticated: false,
-        user: null
+        user: null,
+        token: null
       }
     default:
       return state
@@ -42,23 +46,49 @@ function authReducer(state, action) {
 export function AuthProvider({ children }) {
   const [state, dispatch] = useReducer(authReducer, initialState)
 
-  // Check for existing user on app start (no token needed)
+  // Configure axios interceptor
   useEffect(() => {
+    if (state.token) {
+      console.log('Setting axios auth header with token:', state.token?.substring(0, 20) + '...')
+      axios.defaults.headers.common['Authorization'] = `Bearer ${state.token}`
+      localStorage.setItem('token', state.token)
+      localStorage.setItem('user', JSON.stringify(state.user))
+    } else {
+      console.log('Removing axios auth header')
+      delete axios.defaults.headers.common['Authorization']
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+    }
+  }, [state.token])
+
+  // Check for existing auth on app start
+  useEffect(() => {
+    const token = localStorage.getItem('token')
     const user = localStorage.getItem('user')
     
-    if (user) {
+    console.log('Checking localStorage on startup:')
+    console.log('- Token exists:', !!token)
+    console.log('- User exists:', !!user)
+    console.log('- Token value:', token ? `${token.substring(0, 20)}...` : 'null')
+    
+    if (token && user) {
       try {
         const parsedUser = JSON.parse(user)
-        console.log('Restored user from localStorage:', parsedUser)
+        console.log('Restored user from localStorage:', parsedUser) // Debug log
+        console.log('Restored token from localStorage:', token ? `${token.substring(0, 20)}...` : 'null')
         dispatch({
           type: 'AUTH_SUCCESS',
-          payload: { user: parsedUser }
+          payload: {
+            token,
+            user: parsedUser
+          }
         })
       } catch (error) {
         console.error('Error parsing stored user:', error)
         dispatch({ type: 'AUTH_ERROR' })
       }
     } else {
+      console.log('No token or user found in localStorage')
       dispatch({ type: 'AUTH_ERROR' })
     }
   }, [])
@@ -72,15 +102,13 @@ export function AuthProvider({ children }) {
         password
       })
 
-      const { user } = response.data
-      console.log('Login response user:', user)
-
-      // Store user in localStorage (no token needed)
-      localStorage.setItem('user', JSON.stringify(user))
+      const { user, token } = response.data
+      console.log('Login response user:', user) // Debug log
+      console.log('Login response token:', token) // Debug log
 
       dispatch({
         type: 'AUTH_SUCCESS',
-        payload: { user }
+        payload: { user, token }
       })
 
       toast.success(`Welcome back, ${user.name}!`)
@@ -103,14 +131,11 @@ export function AuthProvider({ children }) {
         password
       })
 
-      const { user } = response.data
-
-      // Store user in localStorage (no token needed)
-      localStorage.setItem('user', JSON.stringify(user))
+      const { user, token } = response.data
 
       dispatch({
         type: 'AUTH_SUCCESS',
-        payload: { user }
+        payload: { user, token }
       })
 
       toast.success(`Welcome, ${user.name}!`)
@@ -124,7 +149,6 @@ export function AuthProvider({ children }) {
   }
 
   const logout = () => {
-    localStorage.removeItem('user')
     dispatch({ type: 'LOGOUT' })
     toast.success('Logged out successfully')
   }

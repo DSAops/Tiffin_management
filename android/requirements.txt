@@ -1,0 +1,5 @@
+kivy==2.3.0
+kivymd==1.2.0
+httpx==0.26.0
+python-dotenv==1.0.0
+asyncio-mqtt==0.16.1
